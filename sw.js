@@ -1,6 +1,6 @@
-const CACHE_NAME = 'iema-incendios-v1';
+const CACHE_NAME = 'iema-incendios-v2';
 const ASSETS = [
-  'registro_incendio.html',
+  'index.html',
   'manifest.json',
   'icone.png',
   'https://cloudflare.com',
