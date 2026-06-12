@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Incêndio - PEP-AZ / IEMA</title>
+    <link rel="manifest" href="manifest.json">
+    <!-- Bibliotecas para o PDF e Envio Automático de E-mail -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f7f9fc; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-top: 5px solid #dc2626; }
+        h2 { color: #991b1b; text-align: center; margin-top: 0; font-size: 22px; }
+        label { display: block; margin-top: 15px; font-weight: 600; color: #475569; }
+        input, select, textarea, button { width: 100%; padding: 12px; margin-top: 6px; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+        textarea { resize: vertical; height: 90px; }
+        .gps-btn { background-color: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .gps-btn:hover { background-color: #2563eb; }
+        .submit-btn { background-color: #dc2626; color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 25px; }
+        .submit-btn:hover { background-color: #b91c1c; }
+        #mapa { margin-top: 8px; font-size: 13px; color: #334155; background: #f1f5f9; padding: 10px; border-radius: 6px; border-left: 4px solid #3b82f6; }
+        .status-badge { text-align: center; padding: 6px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 15px; }
+        .online { background-color: #d1fae5; color: #065f46; }
+        .offline { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="statusRede" class="status-badge online">Verificando conexão...</div>
+    <h2>PEP-AZ / IEMA <br><span style="font-size: 16px; color: #555; font-weight: normal;">Registro de Incêndio</span></h2>
+    
+    <form id="meuFormulario">
+        
+        <!-- Lista de Unidades com os e-mails correspondentes mapeados -->
+        <label for="unidade">Unidade de Destino:</label>
+        <select id="unidade" required>
+            <option value="">Selecione a unidade responsável...</option>
+            <option value="pepaz@iema.es.gov.br|Sede IEMA - PEP-AZ">Sede IEMA - PEP-AZ</option>
+            <option value="unidade2@iema.es.gov.br|Parque Estadual Paulo Cesar Vinha">PE Paulo Cesar Vinha</option>
+            <option value="unidade3@iema.es.gov.br|Parque Estadual Forno Grande">PE Forno Grande</option>
+            <option value="unidade4@iema.es.gov.br|Parque Estadual Pedra Azul">PE Pedra Azul</option>
+        </select>
+
+        <label for="titulo">Nome do Notificante / Inspetor:</label>
+        <input type="text" id="titulo" required placeholder="Ex: Sargento Silva">
+
+        <label for="dataHora">Data e Hora do Fato:</label>
+        <input type="datetime-local" id="dataHora" required>
+
+        <label for="categoria">Tipo de Incêndio / Severidade:</label>
+        <select id="categoria" required>
+            <option value="">Selecione...</option>
+            <option value="Incêndio Florestal / Vegetação">Incêndio Florestal / Vegetação</option>
+            <option value="Incêndio Estrutural / Residencial">Incêndio Estrutural / Residencial</option>
+            <option value="Queima Controlada Não Autorizada">Queima Controlada Não Autorizada</option>
+            <option value="Outros focos">Outros focos</option>
+        </select>
+
+        <label for="observacoes">Descrição da Situação / Danos:</label>
+        <textarea id="observacoes" placeholder="Informe a extensão do fogo, riscos próximos, etc."></textarea>
+
+        <label for="foto">Capturar Foto do Foco (Câmera):</label>
+        <input type="file" id="foto" accept="image/*" capture="environment" required>
+
+        <label>Coordenadas do Foco (GPS):</label>
+        <button type="button" class="gps-btn" onclick="obterLocalizacao()">Capturar Coordenadas Atuais</button>
+        <div id="mapa">Nenhum ponto registrado ainda.</div>
+
+        <button type="submit" class="submit-btn">Enviar Registro Oficial</button>
+    </form>
+</div>
+
+<script>
+    // Registro automático do Service Worker para o modo Offline funcionar
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker ativo.'))
+                .catch(err => console.log('Erro no Worker:', err));
+        });
+    }
+
+    // Deixe estas chaves assim por enquanto, mudaremos na etapa do EmailJS
+    const EMAILJS_PUBLIC_KEY = "9JDWAvBNQaIe6J9es"; 
+    const EMAILJS_SERVICE_ID = "service_w8gtexd"; 
+    const EMAILJS_TEMPLATE_ID = "template_wjs78gy"; 
+
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    let coordenadas = "Não registrado";
+    let fotoBase64 = "";
+
+    function atualizarStatusRede() {
+        const badge = document.getElementById("statusRede");
+        if (navigator.onLine) {
+            badge.innerText = "🌐 Online - Envio de E-mail Automático";
+            badge.className = "status-badge online";
+        } else {
+            badge.innerText = "⚠️ Offline - Gerando Cópia em PDF Local";
+            badge.className = "status-badge offline";
+        }
+    }
+    window.addEventListener('online', atualizarStatusRede);
+    window.addEventListener('offline', atualizarStatusRede);
+    
+    window.onload = function() {
+        atualizarStatusRede();
+        const agora = new Date();
+        agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+        document.getElementById('dataHora').value = agora.toISOString().slice(0,16);
+    };
+
+    document.getElementById('foto').addEventListener('change', function(event) {
+        const file = event.target.files;
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) { fotoBase64 = e.target.result; };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function obterLocalizacao() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                coordenadas = `Lat: ${position.coords.latitude.toFixed(5)}, Long: ${position.coords.longitude.toFixed(5)}`;
+                document.getElementById("mapa").innerText = "📍 " + coordenadas;
+            }, function() {
+                alert("Ative o GPS do aparelho.");
+            });
+        }
+    }
+
+    document.getElementById('meuFormulario').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const unidadeRaw = document.getElementById("unidade").value;
+        const [emailDestino, nomeUnidade] = unidadeRaw.split('|');
+
+        const nome = document.getElementById("titulo").value;
+        const dataHoraRaw = document.getElementById("dataHora").value;
+        const categoria = document.getElementById("categoria").value;
+        const observacoes = document.getElementById("observacoes").value;
+
+        const dataObjeto = new Date(dataHoraRaw);
+        const dataHoraFormatada = dataObjeto.toLocaleString('pt-BR');
+        const dataApenas = dataObjeto.toLocaleDateString('pt-BR');
+
+        if (navigator.onLine) {
+            alert(`Transmitindo relatório para ${emailDestino}...`);
+
+            const parametrosEmail = {
+                enviar_para: emailDestino, 
+                unidade_nome: nomeUnidade,
+                nome_inspetor: nome,
+                data_hora: dataHoraFormatada,
+                data_assunto: dataApenas, 
+                categoria: categoria,
+                observacoes: observacoes,
+                coordenadas_gps: coordenadas,
+                foto_anexo: fotoBase64
+            };
+
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, parametrosEmail)
+                .then(function() {
+                    alert("✅ Registro enviado com sucesso por e-mail!");
+                    gerarPDFLocal(nomeUnidade, nome, dataHoraFormatada, categoria, observacoes);
+                }, function(error) {
+                    alert("Erro técnico no envio. Gerando arquivo PDF...");
+                    gerarPDFLocal(nomeUnidade, nome, dataHoraFormatada, categoria, observacoes);
+                });
+        } else {
+            alert("Dispositivo sem internet. Gerando o PDF de contingência.");
+            gerarPDFLocal(nomeUnidade, nome, dataHoraFormatada, categoria, observacoes);
+        }
+    });
+
+    function gerarPDFLocal(unidade, nome, data, cat, obs) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text("REGISTRO DE INCÊNDIO - IEMA", 10, 20);
+        
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text(`Unidade Destino: ${unidade}`, 10, 35);
+        doc.text(`Notificante: ${nome}`, 10, 43);
+        doc.text(`Data/Hora: ${data}`, 10, 51);
+        doc.text(`Tipo/Severidade: ${cat}`, 10, 59);
+        doc.text(`Localização GPS: ${coordenadas}`, 10, 67);
+        
+        doc.text("Relato da Situação:", 10, 78);
+        const linhasObs = doc.splitTextToSize(obs, 180);
+        doc.text(linhasObs, 10, 84);
+
+        let alturaAtual = 93 + (linhasObs.length * 6);
+
+        if (fotoBase64) {
+            doc.text("Imagem anexada:", 10, alturaAtual);
+            doc.addImage(fotoBase64, 'JPEG', 10, alturaAtual + 5, 120, 90);
+        }
+
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl);
+    }
+</script>
+</body>
+</html>

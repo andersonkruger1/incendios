@@ -1,0 +1,17 @@
+{
+  "short_name": "Incêndios IEMA",
+  "name": "Registro de Incêndios - IEMA",
+  "icons": [
+    {
+      "src": "icone.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "registro_incendio.html",
+  "background_color": "#f7f9fc",
+  "display": "standalone",
+  "theme_color": "#dc2626",
+  "orientation": "portrait"
+}
