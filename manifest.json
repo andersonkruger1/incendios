@@ -1,17 +1,15 @@
 {
-  "short_name": "Incêndios IEMA",
-  "name": "Registro de Incêndios - IEMA",
+  "short_name": "PREVINES",
+  "name": "PREVINES - IEMA",
   "icons": [
     {
       "src": "icone.png",
       "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any maskable"
+      "sizes": "512x512"
     }
   ],
   "start_url": "index.html",
-  "background_color": "#f7f9fc",
+  "background_color": "#ffffff",
   "display": "standalone",
-  "theme_color": "#dc2626",
-  "orientation": "portrait"
+  "theme_color": "#dc2626"
 }
